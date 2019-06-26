@@ -1,6 +1,6 @@
 ---
 title: "Effects on Learning of Small Class Sizes"
-author: "Majoni Maumbe (IST 565)"
+author: "Majoni Maumbe"
 date: June 3rd, 2018 
 output:
   word_document: default

@@ -1,6 +1,8 @@
 # Effects-on-Learning-for-small-class-sizes
 This project is meant to optimize math and english standardized test scores
 
+R
+
 INTRODUCTION
 
 Education is an important asset to all, as it provides fundamental skills to live a better life. This analysis seeks to determine which factors optimize the standardized mathematics and readings test scores for children in schools. Standardized testing of students in the United States is now 150 years old, and in 2001 No Child Left Behind education reform was implemented for state-mandated standardized testing as a means of assessing a school’s performance. Now most students are tested each year of grade school.

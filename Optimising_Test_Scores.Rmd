@@ -1,0 +1,414 @@
+---
+title: "Effects on Learning of Small Class Sizes"
+author: "Majoni Maumbe (IST 565)"
+date: June 3rd, 2018 
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+---
+
+#Data Sources and Packages
+```{r}
+#Dataset: https://vincentarelbundock.github.io/Rdatasets/csv/Ecdat/Star.csv
+#Data Dictionary: https://vincentarelbundock.github.io/Rdatasets/doc/Ecdat/Star.html
+
+#Packages
+# install.packages("ggplot2")
+# install.packages("reshape2")
+# install.packages("plotly")
+# install.packages("plyr")
+# install.packages("dplyr")
+# install.packages("arules")
+# install.packages("arulesViz")
+# install.packages("rpart")
+# install.packages('rattle')
+# install.packages('rpart.plot')
+# install.packages('RColorBrewer')
+# install.packages("Cairo")
+# install.packages("CORElearn")
+# install.packages("caret")
+# install.packages("e1071")
+# install.packages("knitr")
+# install.packages("cluster")
+# install.packages("factoextra")
+
+suppressMessages(library(ggplot2))
+suppressMessages(library(reshape2))
+suppressMessages(library(plotly))
+suppressMessages(library(plyr))
+suppressMessages(library(dplyr))
+suppressMessages(library(arules))
+suppressMessages(library(arulesViz))
+suppressMessages(library(rpart))
+suppressMessages(library(rattle))
+suppressMessages(library(rpart.plot))
+suppressMessages(library(RColorBrewer))
+suppressMessages(library(Cairo))
+suppressMessages(library(CORElearn))
+suppressMessages(library(caret))
+suppressMessages(library(e1071))
+suppressMessages(library(knitr))
+suppressMessages(library(cluster))
+suppressMessages(library(factoextra))
+```
+
+#Loading and Cleaning the Dataset
+```{r}
+#Load the dataset and remove ID column
+CSdata <- read.csv("https://vincentarelbundock.github.io/Rdatasets/csv/Ecdat/Star.csv")
+CSdata <- CSdata[,-1]
+
+#Rename the column headers
+colnames(CSdata) <- c("math_score", "reading_score", "class_size", "teacher_experience", "student_gender", "free_lunch", "race", "school_id")
+
+#Append Total Score Column and Re-Order Columns
+CSdata$total_score <- CSdata$math_score+CSdata$reading_score
+CSdata <- CSdata[,c(8,3,5,6,7,4,1,2,9)]
+```
+
+
+####Check for Missing Values
+```{r}
+colSums(is.na(CSdata))
+```
+
+
+####Data Dictionary
+```{r}
+field_name <- colnames(CSdata)
+field_discriptions <- c("school indicator variable", 
+                        "type of class, a factor with levels (regular,small.class,regular.with.aide)",
+                        "a factor with levels (boy,girl)",
+                        "qualified for free lunch ?",
+                        "a factor with levels (white,black,other)",
+                        "years of total teaching experience",
+                        "total math scaled score",
+                        "total reading scaled score",
+                        "total scaled score")
+dictionary <- data.frame("Field Name" = field_name,"Field Discriptions" = field_discriptions)
+kable(dictionary)
+```
+
+
+####Cleaned Dataset Preview
+```{r}
+#Print results of first 10 records
+kable(head(CSdata, 5))
+```
+
+
+####Formatting nominal values to factors with levels
+```{r}
+CSdata$class_size <- factor(CSdata$class_size, levels = c("small.class", "regular", "regular.with.aide"))
+CSdata$student_gender <- factor(CSdata$student_gender, levels = c("boy", "girl"))
+CSdata$free_lunch <- factor(CSdata$free_lunch, levels = c("yes", "no"))
+CSdata$race <- factor(CSdata$race, levels = c("white", "black", "other"))
+
+#View Structure of the Dataframe
+str(CSdata)
+```
+
+#Summary Statistics of the Dataframe
+
+####Integer Value Statistics
+```{r}
+int_stat <-  summary(CSdata[,c(6,7,8,9)])
+colnames(int_stat) <- c("Teacher Experience", "Math Score", "Reading Score", "Total Score")
+kable(int_stat)
+
+```
+
+####Nominal Value Statistics
+```{r}
+nom_stat <-  summary(CSdata[,c(2,3,4,5)])
+colnames(nom_stat) <- c("Class Size", "Student Gender", "Free Lunch", "Race")
+kable(nom_stat)
+```
+
+####Average Math and Reading Scores by Class Size
+```{r}
+csdatamean <- aggregate(CSdata[,7:9], by=list(CSdata$class_size), FUN=mean)
+colnames(csdatamean) <- c("Class Size", "Math Score", "Reading Score", "Total Score")
+kable(csdatamean)
+```
+
+
+#Visualizing the Data
+
+####Does Teaching Experience and Class Size Affect Total Score?
+```{r, fig.width=8}
+
+agg <- aggregate(CSdata$total_score, by=list(CSdata$class_size,CSdata$teacher_experience), 
+  FUN=mean, na.rm=TRUE)
+names(agg) <- c("class_size", "teacher_experience", "total_score")
+
+ggplot(agg, aes(x=teacher_experience, y=total_score, group=class_size, colour=class_size ) ) + 
+            geom_line(size=2) + labs(x="Teacher Experience (years)",y="Total Score") +
+            ggtitle("Smaller class sizes appear to have a higher average total score") + 
+            theme(legend.position="bottom")
+```
+
+
+####Does a student's ethnicity play a factor?
+```{r, fig.width=8}
+ggplot(CSdata, aes(x=race, y=total_score, color=class_size)) +
+  geom_boxplot() +
+  labs(x="Student Ethnicity",y="Total Score") +
+            ggtitle("The median total scores are higher for student in smaller classes and higher\namong white students") + 
+  theme(legend.position="bottom")
+
+
+```
+
+
+#Transformation of Test Scores to Z-scores
+
+#####Calculating the Test Score's Z-Score by Class Size
+```{r}
+#Z-Score of Small Classes Math and Reading
+CSZ_score <- CSdata
+CSZ_score$z_score_math <- scale(CSdata$math_score, center = TRUE, scale = TRUE)
+CSZ_score$z_score_reading <- scale(CSdata$reading_score, center = TRUE, scale = TRUE)
+CSZ_score$z_score_total <- scale(CSdata$total_score, center = TRUE, scale = TRUE)
+
+kable(head(CSZ_score[,c(2,7,10,8,11,9,12)], 10))
+```
+
+
+```{r, fig.width=8}
+ggplot(CSZ_score, aes(x=z_score_total)) + geom_histogram(binwidth=.5, colour="black", alpha=.3, fill="blue") +
+       geom_vline(data=CSZ_score, aes(xintercept=mean(z_score_total)), linetype="dashed", size=1, colour="red") +
+       ggtitle("Z-score distribution of students' total scores is slightly right skewed") +
+       labs(x="Total Score (Z-score)",y="Number of Students")
+```
+
+
+####Does poverty affect how well a student does on tests?  
+```{r, fig.width=8}
+# Scatter Plot: Z-Score of Total by Class Size and Free Lunch
+ggplot(CSZ_score, aes(x=z_score_total,fill=free_lunch)) + geom_histogram(binwidth=.5, colour="black", alpha=.3, position="identity") +
+       scale_fill_manual(values=c("red", "green")) +
+       geom_vline(data=CSZ_score, aes(xintercept=mean(z_score_total)), linetype="dashed", size=1, colour="red") +
+       ggtitle("Student participating in free lunch programs severly underperform") +
+       labs(x="Total Score (Z-score)",y="Number of Students", fill="Free Lunch") + 
+       theme(legend.position="bottom")
+```
+
+
+#Association Rule Mining
+
+####Preparing the data for Apriori Modeling
+```{r}
+CSApriori <-  CSdata[,c(-1,-7,-8)]
+CSApriori$total_score <- round(scale(CSApriori$total_score, center = TRUE, scale = TRUE),2)
+
+# Discretize dataset for Teacher Experience
+CSApriori$teacher_experience <- cut(CSApriori$teacher_experience, 
+                                    breaks = c(-1,0,4,9,14,Inf),
+                                    labels=c("0 Years", "1-4 Years", "5-9 Years","10-14 Years","15+ Years"))
+
+
+
+# Discretize by Total Score based on Z-Score
+CSApriori$total_score <- cut(CSApriori$total_score,
+                             breaks = c(-4,-1.51,-0.51,0.5,1.50,Inf), 
+                             labels=c( "Poor","Below Average", "Average", "Above Average","Excellent"))
+
+CSApriori_Summary <-  summary(CSApriori)
+colnames(CSApriori_Summary) <- c("Class Size", "Student Gender", "Free Lunch", "Race", "Teacher Experience", "Total Z-Score")
+kable(CSApriori_Summary)
+
+```
+
+
+####Structure of Apriori Dataset 
+```{r}
+str(CSApriori)
+```
+
+
+####Load the transformed data into the apriori algorithm
+```{r}
+rules = apriori(CSApriori, parameter = list(supp = 0.001, conf = 0.9, maxlen = 3))
+```
+
+
+####Get summary info about all rules
+```{r}
+summary(rules)
+```
+
+####Sorting rules by highest confidence and lift (Top 5 rules)
+```{r}
+rules<-sort(rules, by=c("confidence", "lift"), decreasing=TRUE)
+inspect(rules[1:5])
+```
+
+####Frequently occuring items with "Excellent Test Scores":
+```{r}
+rules<-suppressWarnings(apriori(data=CSApriori, parameter=list(supp=0.001,conf = 0.08, maxlen=3), 
+               appearance = list(default="lhs",rhs="total_score=Excellent"),
+               control = list(verbose=F)))
+rules<-sort(rules, decreasing=TRUE,by=c("confidence", "lift"))
+inspect(rules[1:5])
+```
+
+
+####Frequently occuring items with "Above Average Scores":
+```{r}
+rules<-suppressWarnings(apriori(data=CSApriori, parameter=list(supp=0.001,conf = 0.08, maxlen=3), 
+               appearance = list(default="lhs",rhs="total_score=Above Average"),
+               control = list(verbose=F)))
+rules<-sort(rules, decreasing=TRUE,by=c("confidence", "lift"))
+inspect(rules[1:5])
+```
+
+####Frequently occuring items with "Average Scores":
+```{r}
+rules<-suppressWarnings(apriori(data=CSApriori, parameter=list(supp=0.001,conf = 0.08, maxlen=3), 
+               appearance = list(default="lhs",rhs="total_score=Average"),
+               control = list(verbose=F)))
+rules<-sort(rules, decreasing=TRUE,by=c("confidence", "lift"))
+inspect(rules[1:5])
+```
+
+
+####Frequently occuring items with "Below Average Scores":
+```{r}
+rules<-suppressWarnings(apriori(data=CSApriori, parameter=list(supp=0.001,conf = 0.08, maxlen=3), 
+               appearance = list(default="lhs",rhs="total_score=Below Average"),
+               control = list(verbose=F)))
+rules<-sort(rules, decreasing=TRUE,by=c("confidence", "lift"))
+inspect(rules[1:5])
+```
+
+
+####Frequently occuring items with "Poor Scores":
+```{r}
+rules<-suppressWarnings(apriori(data=CSApriori, parameter=list(supp=0.001,conf = 0.08, maxlen=3), 
+               appearance = list(default="lhs",rhs="total_score=Poor"),
+               control = list(verbose=F)))
+rules<-sort(rules, decreasing=TRUE,by=c("confidence", "lift"))
+inspect(rules[1:5])
+```
+
+
+#Decision Tree
+
+####Load the Dataset
+```{r}
+options(stringsAsFactors = FALSE)
+
+CS_dt <- CSdata[,-c(1,7,8)]
+kable(head(CS_dt))
+
+```
+
+
+####Build and tune decision tree models
+```{r}
+fit <- rpart(class_size ~ total_score,
+             data=CS_dt,
+             method="class")
+summary(fit)
+```
+
+####Testing the Accuracy of Data Actual vs. Predicted
+```{r}
+predicted= predict(fit,CS_dt, type ="class")
+submit <- data.frame(class_size = CS_dt$class_size, Predicted_size = predicted)
+confusionMatrix(predicted, factor(CS_dt$class_size))
+```
+
+####Visualize the Decision Tree
+```{r, fig.width=8}
+fancyRpartPlot(fit)
+```
+
+
+
+#k-Means Clustering
+
+####Preparing the Dataset for Clustering
+```{r}
+clust_data <- CSdata[,-1]
+
+#Turning nominal data into binary
+clust_data$gender <- ifelse(clust_data$student_gender=='boy',1,0)
+clust_data$lunch <- ifelse(clust_data$free_lunch=='yes',1,0)
+clust_data$white <- ifelse(clust_data$race=='white',1,0)
+clust_data$black <- ifelse(clust_data$race=='black',1,0)
+clust_data$other <- ifelse(clust_data$race=='other',1,0)
+
+#Removing columns with nominal data
+clust_data <- clust_data[,-c(2:4,6:7)]
+
+#standartizing all numeric data as Z-Score
+clust_data$teacher_experience <- scale(clust_data$teacher_experience, center = TRUE, scale = TRUE)
+clust_data$total_score <- scale(clust_data$total_score, center = TRUE, scale = TRUE)
+clust_data$gender <- scale(clust_data$gender)
+clust_data$lunch <- scale(clust_data$lunch)
+clust_data$white <- scale(clust_data$white)
+clust_data$black <- scale(clust_data$black)
+clust_data$other <- scale(clust_data$other)
+
+kable(head(clust_data, n= 6))
+
+```
+
+####Removing Class Size Field
+```{r}
+clust_dataonly <- clust_data[,-1]
+kable(head(clust_dataonly, n= 6))
+```
+
+####Clustering Model where k=3
+```{r}
+k = 3
+set.seed(4)
+kmeansModel <- kmeans(clust_dataonly, k,iter.max = 500)
+```
+
+####Cluster Sizes
+```{r}
+kmeansModel$size
+```
+
+####Cluster Centers
+```{r}
+kmeansModel$centers
+```
+
+####Get the clusters that were assigned to each group
+```{r}
+clusterGroups <- data.frame(clust_data,kmeansModel$cluster)
+kable(head(clusterGroups))
+```
+
+
+####Aggregated Cluster Data by Class Size
+```{r}
+clust_agg <- aggregate(clusterGroups[1], by=list(clusterGroups$kmeansModel.cluster,clusterGroups$class_size), FUN=length)
+colnames(clust_agg) <- c("Cluster", "Class Size", "Count")
+kable(clust_agg)
+```
+
+
+####Cluster Plot
+```{r, fig.width=8}
+clusplot(clust_dataonly, kmeansModel$cluster,color=TRUE,
+                shade=TRUE, labels=4, lines=0 )
+```
+
+
+
+
+
+
+
+
+
+
+
+
